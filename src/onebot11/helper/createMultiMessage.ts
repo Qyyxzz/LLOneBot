@@ -135,7 +135,7 @@ export class MessageEncoder {
     }
   }
 
-  packForwardMessage(resid: string) {
+  packForwardMessage(resid: string, summary?: string, news?: { text: string }[]) {
     const uuid = crypto.randomUUID()
     const content = JSON.stringify({
       app: 'com.tencent.multimsg',
@@ -149,16 +149,14 @@ export class MessageEncoder {
       desc: '[聊天记录]',
       extra: JSON.stringify({
         filename: uuid,
-        tsum: 0,
+        tsum: news?.length || 0,
       }),
       meta: {
         detail: {
-          news: [{
-            text: '查看转发消息'
-          }],
+          news: news || [{ text: '查看转发消息' }],
           resid,
           source: '聊天记录',
-          summary: '查看转发消息',
+          summary: summary || '查看转发消息',
           uniseq: uuid,
         }
       },
@@ -176,7 +174,25 @@ export class MessageEncoder {
   async visit(segment: OB11MessageData) {
     const { type, data } = segment
     if (type === OB11MessageDataType.Node) {
-      await this.render(data.content as OB11MessageData[])
+      const nodeContent = data.content as OB11MessageData[]
+      const isNestedForward = nodeContent.every(item => item.type === OB11MessageDataType.Node)
+      if (isNestedForward) {
+        const nestedEncoder = new MessageEncoder(this.ctx, this.peer)
+        const { multiMsgItems, summary, news } = await nestedEncoder.generate(nodeContent)
+        const resid = await this.ctx.app.pmhq.uploadForward(this.peer, multiMsgItems)
+        const forwardElement: OB11MessageData = {
+          type: OB11MessageDataType.Forward,
+          data: {
+            id: resid,
+            summary: summary,
+            news: news,
+          },
+        }
+        await this.visit(forwardElement)
+      }
+      else {
+        await this.render(nodeContent)
+      }
       const id = data.uin ?? data.user_id
       this.uin = id ? +id : undefined
       this.name = data.name ?? data.nickname
@@ -212,8 +228,10 @@ export class MessageEncoder {
           businessType: 1
         }
       })
+      const snippet = data.content.replace(/[\r\n]/g, ' ').substring(0, 20)
+      this.preview += `[Markdown消息 ${snippet}${data.content.length > 20 ? '...' : ''}]`
     } else if (type === OB11MessageDataType.Forward) {
-      this.children.push(this.packForwardMessage(data.id))
+      this.children.push(this.packForwardMessage(data.id, data.summary, data.news))
       this.preview += '[聊天记录]'
     }
   }
