@@ -54,6 +54,9 @@ export class SendForwardMsg extends BaseAction<Payload, Response> {
         break
       }
       if (node.data.content?.some(e => {
+        if (e.type === 'node') {
+          return false
+        }
         return !MessageEncoder.support.includes(e.type)
       })) {
         fake = false
@@ -77,8 +80,8 @@ export class SendForwardMsg extends BaseAction<Payload, Response> {
 
   private async handleFakeForwardNode(peer: Peer, nodes: OB11MessageNode[]): Promise<Response> {
     const encoder = new MessageEncoder(this.ctx, peer)
-    const raw = await encoder.generate(nodes)
-    const resid = await this.ctx.app.pmhq.uploadForward(peer, raw.multiMsgItems)
+    const { multiMsgItems, summary, news } = await encoder.generate(nodes)
+    const resid = await this.ctx.app.pmhq.uploadForward(peer, multiMsgItems)
     const uuid = randomUUID()
     try {
       const msg = await this.ctx.ntMsgApi.sendMsg(peer, [{
@@ -97,14 +100,14 @@ export class SendForwardMsg extends BaseAction<Payload, Response> {
             desc: '[聊天记录]',
             extra: JSON.stringify({
               filename: uuid,
-              tsum: raw.tsum,
+              tsum: news.length,
             }),
             meta: {
               detail: {
-                news: raw.news,
+                news: news,
                 resid,
-                source: raw.source,
-                summary: raw.summary,
+                source: '聊天记录',
+                summary: `查看${news.length}条转发消息`,
                 uniseq: uuid,
               },
             },

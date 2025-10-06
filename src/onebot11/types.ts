@@ -331,6 +331,8 @@ export interface OB11MessageForward {
   type: OB11MessageDataType.Forward
   data: {
     id: string
+    summary?: string
+    news?: { text: string }[]
   }
 }
 
