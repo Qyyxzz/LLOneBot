@@ -36,11 +36,9 @@ export class MessageEncoder {
 
     const nick = this.name || selfInfo.nick || 'QQ用户'
 
-    if (this.news.length < 4) {
       this.news.push({
         text: `${nick}: ${this.preview}`
       })
-    }
 
     this.results.push({
       routingHead: {
