@@ -104,7 +104,7 @@ export class SendForwardMsg extends BaseAction<Payload, Response> {
             }),
             meta: {
               detail: {
-                news: news,
+                news: news.slice(0, 4),
                 resid,
                 source: '聊天记录',
                 summary: `查看${news.length}条转发消息`,
