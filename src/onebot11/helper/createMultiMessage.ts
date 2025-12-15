@@ -1,6 +1,7 @@
 import { Context } from 'cordis'
 import { OB11MessageData, OB11MessageDataType } from '../types'
 import { Msg, Media } from '@/ntqqapi/proto'
+import { ProtoField, ProtoMessage } from '@saltify/typeproto'
 import { handleOb11RichMedia } from './createMessage'
 import { selfInfo } from '@/common/globalVars'
 import { Peer, RichMediaUploadCompleteNotify } from '@/ntqqapi/types'
@@ -219,6 +220,19 @@ export class MessageEncoder {
       const busiType = Number(segment.data.subType) || 0
       this.children.push(await this.packImage(data, busiType))
       this.preview += busiType === 1 ? '[动画表情]' : '[图片]'
+    } else if (type === OB11MessageDataType.Markdown) {
+      const MarkdownElem = ProtoMessage.of({
+        content: ProtoField(1, 'string')
+      })
+      this.children.push({
+        commonElem: {
+          serviceType: 45,
+          pbElem: MarkdownElem.encode({ content: data.content }),
+          businessType: 1
+        }
+      })
+      const snippet = data.content.replace(/[\r\n]/g, ' ').substring(0, 20)
+      this.preview += `[Markdown消息 ${snippet}${data.content.length > 20 ? '...' : ''}]`
     } else if (type === OB11MessageDataType.Forward) {
       this.children.push(this.packForwardMessage(data.id, data.summary, data.news))
       this.preview += '[聊天记录]'
