@@ -1,6 +1,7 @@
 import { Context } from 'cordis'
 import { OB11MessageData, OB11MessageDataType, OB11MessageNode } from '../types'
 import { Msg, Media } from '@/ntqqapi/proto'
+import { ProtoField, ProtoMessage } from '@saltify/typeproto'
 import { handleOb11RichMedia, message2List } from './createMessage'
 import { selfInfo } from '@/common/globalVars'
 import { ElementType, Peer, RichMediaUploadCompleteNotify } from '@/ntqqapi/types'
@@ -257,6 +258,19 @@ export class MessageEncoder {
       this.children.push(await this.packImage(data, busiType))
       this.preview += busiType === 1 ? '[动画表情]' : '[图片]'
       this.deleteAfterSentFiles.push(path)
+    } else if (type === OB11MessageDataType.Markdown) {
+      const MarkdownElem = ProtoMessage.of({
+        content: ProtoField(1, 'string')
+      })
+      this.children.push({
+        commonElem: {
+          serviceType: 45,
+          pbElem: MarkdownElem.encode({ content: data.content }),
+          businessType: 1
+        }
+      })
+      const snippet = data.content.replace(/[\r\n]/g, ' ')
+      this.preview += `[Markdown消息 ${snippet}]`
     } else if (type === OB11MessageDataType.Forward) {
       // 处理 forward 类型：支持 id（已有 resid）或 content（嵌套节点）
       const forwardData = data as { id?: string; content?: OB11MessageData[]; source?: string; news?: { text: string }[]; summary?: string; prompt?: string }
