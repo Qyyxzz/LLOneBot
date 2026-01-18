@@ -198,7 +198,9 @@ export class MessageEncoder {
           return
         }
 
-        // 提取嵌套节点的自定义外显参数
+        const innerNodes = content.filter(e => e.type === OB11MessageDataType.Node) as OB11MessageNode[]
+
+        // 从 nodeData 中读取自定义外显参数
         const nestedOptions = {
           source: (nodeData as any).source,
           news: (nodeData as any).news,
@@ -206,9 +208,103 @@ export class MessageEncoder {
           prompt: (nodeData as any).prompt,
         }
 
+        // 自动生成默认的 news
+        if (!nestedOptions.news || nestedOptions.news.length === 0) {
+          nestedOptions.news = innerNodes.slice(0, 4).map(node => {
+            const nickname = node.data.name || node.data.nickname || 'QQ用户'
+
+            // 尝试获取内容类型
+            let contentType = '消息'
+            const nodeContent = node.data.content ? message2List(node.data.content) : []
+            if (nodeContent.length > 0) {
+              const firstItem = nodeContent[0]
+
+              // 使用 switch 语句覆盖所有消息类型
+              switch (firstItem.type) {
+                case OB11MessageDataType.Text:
+                  contentType = firstItem.data.text || '文本消息'
+                  break
+                case OB11MessageDataType.Image:
+                  contentType = firstItem.data.summary || '[图片]'
+                  break
+                case OB11MessageDataType.Face:
+                  contentType = '[表情]'
+                  break
+                case OB11MessageDataType.Mface:
+                  contentType = '[商城表情]'
+                  break
+                case OB11MessageDataType.Video:
+                  contentType = '[视频]'
+                  break
+                case OB11MessageDataType.Record:
+                  contentType = '[语音]'
+                  break
+                case OB11MessageDataType.File:
+                  contentType = firstItem.data.name ? `[文件]${firstItem.data.name}` : '[文件]'
+                  break
+                case OB11MessageDataType.FlashFile:
+                  contentType = firstItem.data.title ? `[闪传]${firstItem.data.title}` : '[闪传]'
+                  break
+                case OB11MessageDataType.At:
+                  contentType = firstItem.data.qq === 'all' ? '[@全体成员]' : `[@${firstItem.data.name || firstItem.data.qq}]`
+                  break
+                case OB11MessageDataType.Reply:
+                  contentType = '[回复]'
+                  break
+                case OB11MessageDataType.Forward:
+                  contentType = '[转发消息]'
+                  break
+                case OB11MessageDataType.Node:
+                  contentType = '[聊天记录]'
+                  break
+                case OB11MessageDataType.Markdown:
+                  contentType = `[Markdown消息 ${firstItem.data.content || ''}]`
+                  break
+                case OB11MessageDataType.Json:
+                  contentType = '[JSON消息]'
+                  break
+                case OB11MessageDataType.Music:
+                  contentType = '[音乐]'
+                  break
+                case OB11MessageDataType.Poke:
+                  contentType = '[戳一戳]'
+                  break
+                case OB11MessageDataType.Dice:
+                  contentType = `[骰子${firstItem.data.result ? ':' + firstItem.data.result : ''}]`
+                  break
+                case OB11MessageDataType.Rps:
+                  contentType = `[猜拳${firstItem.data.result ? ':' + firstItem.data.result : ''}]`
+                  break
+                case OB11MessageDataType.Contact:
+                  contentType = firstItem.data.type === 'qq' ? '[推荐好友]' : '[推荐群]'
+                  break
+                case OB11MessageDataType.Shake:
+                  contentType = '[窗口抖动]'
+                  break
+                case OB11MessageDataType.Keyboard:
+                  contentType = '[按钮]'
+                  break
+                default:
+                  contentType = '[消息]'
+              }
+            }
+
+            return { text: `${nickname}: ${contentType}` }
+          })
+        }
+
+        // 自动生成默认的 summary
+        if (!nestedOptions.summary) {
+          nestedOptions.summary = `查看${innerNodes.length}条转发消息`
+        }
+
+        // 自动生成默认的 prompt
+        if (!nestedOptions.prompt) {
+          nestedOptions.prompt = '[聊天记录]'
+        }
+
         // 递归生成内层合并转发
         const innerEncoder = new MessageEncoder(this.ctx, this.peer, this.depth + 1)
-        const innerNodes = content.filter(e => e.type === OB11MessageDataType.Node) as OB11MessageNode[]
         const innerRaw = await innerEncoder.generate(innerNodes, nestedOptions)
 
         // 上传内层合并转发，获取 resid
